@@ -38,9 +38,9 @@ class LLMClient:
         if tamu_key and TAMU_AVAILABLE:
             try:
                 self.client = TAMUChatClient(api_key=tamu_key)
-                self.model = "gpt-3.5-turbo"
+                self.model = "gpt-4o"  # Using GPT-4o (latest available model)
                 self.provider = "tamu"
-                print("✓ Primary: TAMU AI Chat API (GPT-3.5-turbo)")
+                print("✓ Primary: TAMU AI Chat API (GPT-4o)")
             except Exception as e:
                 print(f"⚠ TAMU API initialization failed: {e}")
         
@@ -91,7 +91,12 @@ class LLMClient:
         try:
             if self.provider == "tamu":
                 combined_prompt = messages[0]["content"] + "\n\n" + messages[1]["content"]
-                response = self.client.chat_completion(combined_prompt)
+                # Try with model parameter first, fall back to default if it fails
+                try:
+                    response = self.client.chat_completion(combined_prompt, model=self.model)
+                except:
+                    # If model parameter fails, try without it (use default)
+                    response = self.client.chat_completion(combined_prompt)
                 return response.text
             elif self.provider == "groq":
                 response = self.client.chat.completions.create(

@@ -210,7 +210,7 @@ validator = DoxygenValidator(reference_file_path="your_file.h")
 
 ## API Information
 
-**Primary**: TAMU AI Chat (GPT-3.5-turbo via TAMU)  
+**Primary**: TAMU AI Chat (GPT-4o via TAMU)  
 **Fallback**: Groq (Llama 3.3 70B) → OpenAI → Ollama
 
 The app automatically falls back if TAMU API is unavailable.
