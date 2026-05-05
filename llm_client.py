@@ -38,9 +38,9 @@ class LLMClient:
         if tamu_key and TAMU_AVAILABLE:
             try:
                 self.client = TAMUChatClient(api_key=tamu_key)
-                self.model = "gpt-4o"  # Using GPT-4o (latest available model)
+                self.model = "protected.gpt-5.4"  # Using GPT-5.4
                 self.provider = "tamu"
-                print("✓ Primary: TAMU AI Chat API (GPT-4o)")
+                print("✓ Primary: TAMU AI Chat API (GPT-5.4)")
             except Exception as e:
                 print(f"⚠ TAMU API initialization failed: {e}")
         
@@ -91,12 +91,8 @@ class LLMClient:
         try:
             if self.provider == "tamu":
                 combined_prompt = messages[0]["content"] + "\n\n" + messages[1]["content"]
-                # Try with model parameter first, fall back to default if it fails
-                try:
-                    response = self.client.chat_completion(combined_prompt, model=self.model)
-                except:
-                    # If model parameter fails, try without it (use default)
-                    response = self.client.chat_completion(combined_prompt)
+                # Use specified model
+                response = self.client.chat_completion(combined_prompt, model=self.model)
                 return response.text
             elif self.provider == "groq":
                 response = self.client.chat.completions.create(
@@ -115,7 +111,24 @@ class LLMClient:
                 )
                 return response.choices[0].message.content.strip()
         except Exception as e:
-            print(f"⚠ {self.provider} API failed: {e}")
+            error_msg = str(e).lower()
+            
+            # Provide specific error messages for common issues
+            if "500" in error_msg or "internal server error" in error_msg:
+                print(f"⚠ {self.provider} API error: 500 Internal Server Error")
+                print("  This usually means:")
+                print("  - Invalid API key")
+                print("  - API key expired")
+                print("  - Service temporarily unavailable")
+                print(f"  Original error: {e}")
+            elif "401" in error_msg or "unauthorized" in error_msg:
+                print(f"⚠ {self.provider} API error: Authentication failed")
+                print("  Check your API key in .env file")
+            elif "429" in error_msg or "rate limit" in error_msg:
+                print(f"⚠ {self.provider} API error: Rate limit exceeded")
+                print("  Wait a few minutes before trying again")
+            else:
+                print(f"⚠ {self.provider} API failed: {e}")
             
             # Try fallback if available
             if self.fallback_client:
@@ -132,7 +145,7 @@ class LLMClient:
                 except Exception as fallback_error:
                     print(f"⚠ Fallback also failed: {fallback_error}")
             
-            raise Exception(f"All LLM providers failed. Primary: {e}")
+            raise Exception(f"All LLM providers failed. Primary error: {e}")
 
     def generate_code(self, prompt: str, context: List[Dict], language: str) -> str:
         """Generate code using RAG context"""

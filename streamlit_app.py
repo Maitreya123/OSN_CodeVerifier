@@ -165,6 +165,37 @@ with tab2:
             if 'fixed_content' in st.session_state:
                 st.subheader("📄 Fixed Code")
                 
+                # Generate diff-highlighted version for the fixed column
+                original_lines = st.session_state['file_content'].split('\n')
+                fixed_lines = st.session_state['fixed_content'].split('\n')
+                
+                # Create diff HTML for fixed column
+                diff_html = '<div style="font-family: \'Courier New\', monospace; font-size: 13px; background: #0d1117; padding: 10px; border-radius: 6px; overflow-x: auto; line-height: 1.5;">'
+                
+                # Track which lines are new/modified
+                orig_set = set(original_lines)
+                
+                line_num = 1
+                for line in fixed_lines:
+                    escaped_line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    
+                    # Check if this is a new documentation line
+                    is_doc_line = (line.strip().startswith('///') or 
+                                  line.strip().startswith('/**') or 
+                                  line.strip().startswith('*/') or
+                                  (line.strip().startswith('*') and not line.strip().startswith('*/')))
+                    
+                    # If it's a doc line and not in original, highlight green
+                    if is_doc_line and line not in orig_set:
+                        diff_html += f'<div style="background: #0d4429; color: #aff5b4; padding: 1px 8px; margin: 0;"><span style="color: #6e7681; margin-right: 10px; user-select: none;">{line_num:3d}</span>{escaped_line}</div>'
+                    else:
+                        # Regular line
+                        diff_html += f'<div style="color: #c9d1d9; padding: 1px 8px; margin: 0;"><span style="color: #6e7681; margin-right: 10px; user-select: none;">{line_num:3d}</span>{escaped_line}</div>'
+                    
+                    line_num += 1
+                
+                diff_html += '</div>'
+                
                 # Show side-by-side comparison
                 col1, col2 = st.columns(2)
                 with col1:
@@ -172,7 +203,7 @@ with tab2:
                     st.code(st.session_state['file_content'], language='cpp', line_numbers=True)
                 with col2:
                     st.markdown("**Fixed:**")
-                    st.code(st.session_state['fixed_content'], language='cpp', line_numbers=True)
+                    st.markdown(diff_html, unsafe_allow_html=True)
                 
                 # Show summary
                 st.divider()
