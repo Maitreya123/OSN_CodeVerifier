@@ -6,15 +6,17 @@ Uses TAMU AI Chat to validate and fix Doxygen documentation in C++ header files
 import re
 from typing import List, Dict, Tuple
 from llm_client import LLMClient
+from code_verifier import CodeVerifier
 
 
 class DoxygenValidator:
     """Validates and fixes Doxygen documentation in C++ header files"""
     
-    def __init__(self, reference_file_path: str = "angle_set.h"):
+    def __init__(self, reference_file_path: str = "angle_set.h", verify_code: bool = True):
         self.llm_client = LLMClient()
         self.guidelines = self._load_guidelines()
         self.reference_example = self._load_reference_example(reference_file_path)
+        self.verify_code = verify_code  # Enable/disable code verification
     
     def _load_reference_example(self, file_path: str) -> str:
         """Load reference example file (angle_set.h)"""
@@ -739,8 +741,21 @@ CRITICAL RULES:
         except Exception as e:
             return f"/// TODO: Add documentation (error: {e})"
     
-    def fix_file(self, file_content: str, validation_result: Dict) -> str:
-        """Fix all documentation issues in the file"""
+    def fix_file(self, file_content: str, validation_result: Dict = None) -> str:
+        """
+        Fix all documentation issues in the file
+        
+        Args:
+            file_content: Original file content
+            validation_result: Validation result dict (if None, will validate first)
+            
+        Returns:
+            Fixed file content (or original if verification fails)
+        """
+        # Validate first if not provided
+        if validation_result is None:
+            validation_result = self.validate_file(file_content)
+        
         lines = file_content.split('\n')
         
         # Separate issues into different categories
@@ -807,7 +822,20 @@ CRITICAL RULES:
             for doc_line in reversed(doc_lines):
                 lines.insert(line_idx, indent_str + doc_line)
         
-        return '\n'.join(lines)
+        fixed_content = '\n'.join(lines)
+        
+        # Verify that only comments were changed (if verification enabled)
+        if self.verify_code:
+            is_valid, message = CodeVerifier.verify_code_unchanged(file_content, fixed_content)
+            if not is_valid:
+                print(f"\n⚠️  CODE VERIFICATION FAILED!")
+                print(message)
+                print("\n🚫 Rejecting changes to prevent code modification")
+                return file_content  # Return original unchanged
+            else:
+                print(f"\n{message}")
+        
+        return fixed_content
     
     def _fix_style_issue(self, lines: List[str], issue: Dict) -> List[str]:
         """Fix a style issue in existing documentation"""

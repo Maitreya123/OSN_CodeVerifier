@@ -49,11 +49,14 @@ The app will open in your browser at `http://localhost:8501`
 ## Features
 
 ✅ **Validates** against OpenSn Doxygen guidelines  
-✅ **Generates** concise documentation using TAMU AI Chat  
+✅ **Generates** concise documentation using TAMU AI Chat (GPT-5.4)  
 ✅ **Uses** OpenSn codebase context from GitHub  
 ✅ **Fixes** style issues (@note → \note, @param → \param)  
-✅ **Shows** side-by-side comparison with syntax highlighting  
+✅ **Shows** side-by-side comparison with GitHub-style diff highlighting  
 ✅ **Lists** all changes made with line numbers  
+✅ **Verifies** AI changes don't modify actual code (only comments)  
+✅ **Terminal API** for batch processing files and folders  
+✅ **Supports** multiple file uploads (headers + source files)  
 
 ## What Gets Checked
 
@@ -108,14 +111,17 @@ private:
 ```
 nuclear_doxygen/
 ├── setup.sh              # Setup script (run once)
-├── start.sh              # Start the app
+├── start.sh              # Start the web app
 ├── streamlit_app.py      # Web interface
 ├── doxygen_validator.py  # Validation engine
-├── llm_client.py         # TAMU AI Chat integration
+├── llm_client.py         # TAMU AI Chat integration (GPT-5.4)
+├── code_verifier.py      # Verifies AI doesn't modify code
+├── doxygen_cli.py        # Terminal API for batch processing
 ├── angle_set.h           # Reference file (perfect docs)
 ├── demo_file.h           # Example file to test
 ├── requirements.txt      # Python dependencies
 ├── .env                  # API configuration
+├── TROUBLESHOOTING.md    # API troubleshooting guide
 └── README.md             # This file
 ```
 
@@ -186,12 +192,53 @@ chmod +x setup.sh start.sh
 
 ## Advanced Usage
 
+### Terminal API (Batch Processing)
+
+Process multiple files or entire directories:
+
+```bash
+# Validate a single file
+python3 doxygen_cli.py myfile.h
+
+# Fix a file and save to new file
+python3 doxygen_cli.py myfile.h --fix
+
+# Fix in-place with backup
+python3 doxygen_cli.py myfile.h --fix --in-place --backup
+
+# Process all .h files in a directory
+python3 doxygen_cli.py src/ --fix --in-place
+
+# Process recursively
+python3 doxygen_cli.py src/ --fix --in-place --recursive
+
+# Verbose output
+python3 doxygen_cli.py myfile.h --fix --verbose
+
+# Disable code verification (not recommended)
+python3 doxygen_cli.py myfile.h --fix --no-verify
+```
+
+### Code Verification
+
+The system automatically verifies that AI-generated changes only affect comments, not actual code:
+
+1. Strips all comments and empty lines from both original and fixed versions
+2. Compares the stripped code
+3. Rejects changes if code was modified
+
+This prevents the AI from accidentally changing function signatures, variable names, or other code elements.
+
+To disable verification (not recommended):
+- Web UI: Not available (always enabled for safety)
+- CLI: Use `--no-verify` flag
+
 ### Command Line Testing
 
 Test the validator without the UI:
 
 ```bash
-./venv/bin/python -c "
+python3 -c "
 from doxygen_validator import DoxygenValidator
 validator = DoxygenValidator()
 with open('demo_file.h') as f:
@@ -202,18 +249,32 @@ print(f'Issues: {result[\"issues_found\"]}')
 
 ### Custom Reference File
 
-Edit `doxygen_validator.py` line 11 to use a different reference:
+Edit `doxygen_validator.py` line 14 or use CLI flag:
 
 ```python
 validator = DoxygenValidator(reference_file_path="your_file.h")
 ```
 
+Or with CLI:
+```bash
+python3 doxygen_cli.py myfile.h --reference your_reference.h
+```
+
 ## API Information
 
-**Primary**: TAMU AI Chat (default model: protected.o3)  
+**Primary**: TAMU AI Chat (GPT-5.4 model)  
 **Fallback**: Groq (Llama 3.3 70B) → OpenAI → Ollama
 
 The app automatically falls back if TAMU API is unavailable.
+
+### Available Models
+
+The TAMU API provides access to multiple models:
+- GPT models: `protected.gpt-5.4`, `protected.gpt-5`, `protected.gpt-4o`, etc.
+- Claude models: `protected.Claude Opus 4.6`, `protected.Claude Sonnet 4.6`, etc.
+- Gemini models: `protected.gemini-2.5-pro`, etc.
+
+Current configuration uses `protected.gpt-5.4` for best results.
 
 ## Contributing
 

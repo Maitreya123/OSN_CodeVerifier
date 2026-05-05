@@ -153,13 +153,20 @@ with tab2:
             
             if fix_button:
                 with st.spinner("Generating documentation with TAMU AI Chat..."):
-                    fixed_content = validator.fix_file(
-                        st.session_state['file_content'],
-                        result
-                    )
-                    st.session_state['fixed_content'] = fixed_content
-                
-                st.success("✓ Documentation fixed!")
+                    try:
+                        fixed_content = validator.fix_file(
+                            st.session_state['file_content'],
+                            result
+                        )
+                        
+                        # Check if content actually changed (verification might have rejected it)
+                        if fixed_content == st.session_state['file_content']:
+                            st.error("⚠️ Code verification failed! The AI attempted to modify actual code, not just comments. Changes were rejected for safety.")
+                        else:
+                            st.session_state['fixed_content'] = fixed_content
+                            st.success("✓ Documentation fixed!")
+                    except Exception as e:
+                        st.error(f"Error fixing documentation: {e}")
             
             # Show fixed content
             if 'fixed_content' in st.session_state:
