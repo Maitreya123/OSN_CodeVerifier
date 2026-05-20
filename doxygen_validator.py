@@ -181,13 +181,28 @@ MACRO-DEPENDENT IMPLEMENTATION:
             if not stripped or stripped.startswith('#') or stripped.startswith('//'):
                 continue
             
-            # Skip namespace declarations
+            # Track namespace (but don't skip content inside)
             if stripped.startswith('namespace'):
                 continue
             
             # Skip type aliases (using/typedef) - per guidelines
             if stripped.startswith('using ') or stripped.startswith('typedef '):
                 continue
+            
+            # Parse enum class/enum (can be inside or outside class scope)
+            if 'enum class' in stripped or 'enum struct' in stripped or (stripped.startswith('enum ') and '{' not in stripped):
+                enum_match = re.search(r'enum\s+(class|struct)?\s*(\w+)', stripped)
+                if enum_match:
+                    enum_name = enum_match.group(2) if enum_match.group(2) else enum_match.group(1)
+                    if enum_name and enum_name not in ['class', 'struct']:
+                        entities.append({
+                            'type': 'enum',
+                            'name': enum_name,
+                            'line': i + 1,
+                            'content': line,
+                            'access': 'public' if not in_class else access_level
+                        })
+                        continue
             
             # Track class/struct scope
             if re.match(r'(class|struct)\s+\w+', stripped) and not stripped.endswith(';'):
@@ -377,6 +392,8 @@ MACRO-DEPENDENT IMPLEMENTATION:
         
         if entity['type'] == 'class':
             needs_doc = True
+        elif entity['type'] == 'enum':
+            needs_doc = True  # Enums should be documented
         elif entity['type'] == 'method':
             # Skip if this is a function definition (documentation should be at declaration only)
             if entity.get('is_definition', False):
@@ -567,6 +584,22 @@ RULES:
   - NO verbs, NO complete sentences
   - NEVER use \\brief or @brief
 """
+        elif entity_type == 'enum':
+            entity_guidance = """
+ENTITY TYPE: Enum/Enum Class
+STYLE: Use /// for single-line noun phrase
+PATTERN: "/// [Noun phrase describing what this enum represents]."
+EXAMPLES:
+  - "/// Cell type identifiers."
+  - "/// Boundary condition types."
+  - "/// Solver status codes."
+RULES:
+  - Start with a noun
+  - 3-6 words maximum
+  - End with period
+  - NO verbs, NO complete sentences
+  - NEVER use \\brief or @brief
+"""
         elif entity_type == 'method':
             if is_constructor:
                 entity_guidance = """
@@ -737,9 +770,65 @@ CRITICAL RULES:
             
             doc = '\n'.join(comment_lines).strip()
             
+            # Post-process to fix common verb form mistakes
+            doc = self._fix_verb_forms(doc)
+            
             return doc
         except Exception as e:
             return f"/// TODO: Add documentation (error: {e})"
+    
+    def _fix_verb_forms(self, doc: str) -> str:
+        """Fix common verb form mistakes in documentation"""
+        # Common verb corrections (third person → base form)
+        verb_corrections = {
+            'Returns': 'Return',
+            'Gets': 'Get',
+            'Sets': 'Set',
+            'Builds': 'Build',
+            'Creates': 'Create',
+            'Initializes': 'Initialize',
+            'Checks': 'Check',
+            'Updates': 'Update',
+            'Adds': 'Add',
+            'Removes': 'Remove',
+            'Deletes': 'Delete',
+            'Computes': 'Compute',
+            'Calculates': 'Calculate',
+            'Processes': 'Process',
+            'Validates': 'Validate',
+            'Verifies': 'Verify',
+            'Constructs': 'Construct',
+            'Destroys': 'Destroy',
+            'Allocates': 'Allocate',
+            'Deallocates': 'Deallocate',
+            'Retrieves': 'Retrieve',
+            'Fetches': 'Fetch',
+            'Loads': 'Load',
+            'Saves': 'Save',
+            'Stores': 'Store',
+            'Clears': 'Clear',
+            'Resets': 'Reset',
+            'Applies': 'Apply',
+            'Executes': 'Execute',
+            'Runs': 'Run',
+            'Performs': 'Perform',
+            'Handles': 'Handle',
+            'Manages': 'Manage',
+            'Controls': 'Control',
+            'Configures': 'Configure',
+            'Enables': 'Enable',
+            'Disables': 'Disable',
+            'Activates': 'Activate',
+            'Deactivates': 'Deactivate',
+        }
+        
+        # Fix verb forms at the start of descriptions
+        for wrong, correct in verb_corrections.items():
+            # Match at start of line after /// or after * in multi-line comments
+            doc = re.sub(rf'(///\s+){wrong}\b', rf'\1{correct}', doc)
+            doc = re.sub(rf'(\*\s+){wrong}\b', rf'\1{correct}', doc)
+        
+        return doc
     
     def fix_file(self, file_content: str, validation_result: Dict = None) -> str:
         """
@@ -802,6 +891,45 @@ CRITICAL RULES:
             if line_idx < 0 or line_idx >= len(lines):
                 continue
             
+            # CRITICAL: Check if documentation already exists above this line
+            has_existing_doc = False
+            for i in range(max(0, line_idx - 10), line_idx):
+                line_stripped = lines[i].strip()
+                if line_stripped.startswith('///') or line_stripped.startswith('/**') or line_stripped.startswith('*'):
+                    has_existing_doc = True
+                    break
+            
+            # Skip if documentation already exists
+            if has_existing_doc:
+                continue
+            
+            # CRITICAL: Check if this line is inside a function body
+            # Look for opening brace before this line (within same function)
+            inside_function = False
+            brace_count = 0
+            for i in range(line_idx - 1, max(0, line_idx - 20), -1):
+                line_check = lines[i].strip()
+                # If we hit a function declaration with {, we're inside
+                if '{' in line_check and ('(' in line_check or 'class' in line_check or 'struct' in line_check):
+                    # Check if braces are balanced up to current line
+                    for j in range(i, line_idx):
+                        brace_count += lines[j].count('{') - lines[j].count('}')
+                    if brace_count > 0:
+                        inside_function = True
+                    break
+            
+            # NEVER add documentation inside a function body
+            if inside_function:
+                continue
+            
+            # CRITICAL: Check if target line itself contains opening brace
+            # If so, this is a function definition, don't add doc inside
+            target_line = lines[line_idx]
+            if '{' in target_line and '(' in target_line:
+                # This is likely a function definition line
+                # Documentation should go BEFORE this line, which is correct
+                pass
+            
             # Generate documentation using CURRENT state of file
             current_content = '\n'.join(lines)
             doc = self.fix_entity(entity, current_content)
@@ -811,7 +939,6 @@ CRITICAL RULES:
                 continue
             
             # Get indentation from the target line
-            target_line = lines[line_idx]
             indent = len(target_line) - len(target_line.lstrip())
             indent_str = ' ' * indent
             
