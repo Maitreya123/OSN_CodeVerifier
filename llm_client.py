@@ -34,7 +34,8 @@ class LLMClient:
         self.fallback_provider = None
         
         # Try TAMU AI Chat first (primary)
-        tamu_key = os.getenv("TAMU_API_KEY")
+        # Use DOXYGEN-specific key first, fall back to general TAMU key
+        tamu_key = os.getenv("TAMU_CHAT_API_KEY_DOXYGEN") or os.getenv("TAMU_API_KEY")
         if tamu_key and TAMU_AVAILABLE:
             try:
                 self.client = TAMUChatClient(api_key=tamu_key)

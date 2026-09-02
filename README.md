@@ -17,11 +17,14 @@ This will:
 
 ### 2. Configure API Key
 
-Edit `.env` and add your TAMU API key:
+Edit `.env` and add your TAMU API key. `TAMU_CHAT_API_KEY_DOXYGEN` is the
+preferred variable for this application; `TAMU_API_KEY` remains supported as
+a fallback:
 
 ```bash
+TAMU_CHAT_API_KEY_DOXYGEN=your-actual-api-key-here
+# Optional fallback for existing configurations
 TAMU_API_KEY=your-actual-api-key-here
-TAMU_CHAT_API_KEY=your-actual-api-key-here
 ```
 
 Get your TAMU API key from: https://chat-api.tamu.ai
@@ -176,7 +179,7 @@ chmod +x setup.sh start.sh
 
 ### API Issues
 
-- Check `.env` has valid `TAMU_API_KEY`
+- Check `.env` has a valid `TAMU_CHAT_API_KEY_DOXYGEN` or `TAMU_API_KEY`
 - App shows connection status in sidebar
 - Test API: `./venv/bin/python -c "from llm_client import LLMClient; print(LLMClient().provider)"`
 
