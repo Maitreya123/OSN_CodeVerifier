@@ -7,16 +7,18 @@ import re
 from typing import List, Dict, Tuple
 from llm_client import LLMClient
 from code_verifier import CodeVerifier
+from cpp_header_parser import CppHeaderParser
 
 
 class DoxygenValidator:
     """Validates and fixes Doxygen documentation in C++ header files"""
-    
+
     def __init__(self, reference_file_path: str = "angle_set.h", verify_code: bool = True):
         self.llm_client = LLMClient()
         self.guidelines = self._load_guidelines()
         self.reference_example = self._load_reference_example(reference_file_path)
         self.verify_code = verify_code  # Enable/disable code verification
+        self.cpp_parser = CppHeaderParser()
     
     def _load_reference_example(self, file_path: str) -> str:
         """Load reference example file (angle_set.h)"""
@@ -160,9 +162,13 @@ MACRO-DEPENDENT IMPLEMENTATION:
             'issues': issues,
             'entities': entities_needing_validation  # Only entities with issues
         }
-    
+
     def _parse_entities(self, content: str) -> List[Dict]:
-        """Parse C++ entities that need documentation"""
+        """Parse C++ declarations using Tree-sitter."""
+        return self.cpp_parser.parse(content)
+
+    def _parse_entities_regex(self, content: str) -> List[Dict]:
+        """Legacy regex parser retained temporarily for compatibility reference."""
         entities = []
         lines = content.split('\n')
         
@@ -407,10 +413,12 @@ MACRO-DEPENDENT IMPLEMENTATION:
                     })
                 return issues
             
-            # Public methods need documentation (already filtered out trivial getters/setters and destructors in parser)
-            if entity.get('access') == 'public':
+            # Public methods and static class members need documentation.
+            if entity.get('access') == 'public' or entity.get('is_static', False):
                 needs_doc = True
-        elif entity['type'] == 'member_variable':
+        elif entity['type'] == 'function':
+            needs_doc = True
+        elif entity['type'] in ['member_variable', 'variable']:
             needs_doc = True
         
         # Flag missing documentation
@@ -600,7 +608,7 @@ RULES:
   - NO verbs, NO complete sentences
   - NEVER use \\brief or @brief
 """
-        elif entity_type == 'method':
+        elif entity_type in ['method', 'function']:
             if is_constructor:
                 entity_guidance = """
 ENTITY TYPE: Constructor
@@ -644,7 +652,7 @@ RULES:
   - End with period
   - If method has parameters, use /** */ with \\param entries
 """
-        elif entity_type == 'member_variable':
+        elif entity_type in ['member_variable', 'variable']:
             entity_guidance = """
 ENTITY TYPE: Member Variable
 STYLE: Use /// for single-line noun phrase
@@ -774,8 +782,8 @@ CRITICAL RULES:
             doc = self._fix_verb_forms(doc)
             
             return doc
-        except Exception as e:
-            return f"/// TODO: Add documentation (error: {e})"
+        except Exception as error:
+            raise RuntimeError(f"Unable to generate documentation for {entity_type} '{entity.get('name', '')}'") from error
     
     def _fix_verb_forms(self, doc: str) -> str:
         """Fix common verb form mistakes in documentation"""

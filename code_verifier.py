@@ -5,9 +5,14 @@ Code Verifier - Ensures AI-generated code doesn't modify non-comment content
 
 import re
 
+from tree_sitter import Language, Node, Parser
+import tree_sitter_cpp as cpp
+
 
 class CodeVerifier:
     """Verifies that AI changes only affect comments, not actual code"""
+
+    _parser = Parser(Language(cpp.language()))
     
     @staticmethod
     def strip_comments_and_empty_lines(code: str) -> str:
@@ -15,46 +20,28 @@ class CodeVerifier:
         Strip all comments and empty lines from C++ code
         Returns only the actual code content
         """
-        lines = code.split('\n')
-        stripped_lines = []
-        
-        in_multiline_comment = False
-        
-        for line in lines:
-            # Handle multi-line comments
-            if '/*' in line:
-                # Start of multi-line comment
-                before_comment = line[:line.index('/*')]
-                if '*/' in line[line.index('/*'):]:
-                    # Comment ends on same line
-                    after_comment = line[line.index('*/') + 2:]
-                    line = before_comment + after_comment
-                else:
-                    # Comment continues
-                    in_multiline_comment = True
-                    line = before_comment
-            
-            if in_multiline_comment:
-                if '*/' in line:
-                    # End of multi-line comment
-                    line = line[line.index('*/') + 2:]
-                    in_multiline_comment = False
-                else:
-                    # Still in comment, skip line
-                    continue
-            
-            # Remove single-line comments (// and ///)
-            if '//' in line:
-                line = line[:line.index('//')]
-            
-            # Strip whitespace
-            line = line.strip()
-            
-            # Add non-empty lines
-            if line:
-                stripped_lines.append(line)
-        
-        return '\n'.join(stripped_lines)
+        source = code.encode("utf-8")
+        tree = CodeVerifier._parser.parse(source)
+        comment_ranges = CodeVerifier._comment_ranges(tree.root_node)
+
+        uncommented = []
+        last_end = 0
+        for start, end in comment_ranges:
+            uncommented.append(source[last_end:start].decode("utf-8"))
+            last_end = end
+        uncommented.append(source[last_end:].decode("utf-8"))
+
+        return "\n".join(line.strip() for line in "".join(uncommented).splitlines() if line.strip())
+
+    @staticmethod
+    def _comment_ranges(node: Node) -> list[tuple[int, int]]:
+        """Return source-byte ranges for comments recognized by the C++ parser."""
+        ranges = []
+        if node.type == "comment":
+            ranges.append((node.start_byte, node.end_byte))
+        for child in node.children:
+            ranges.extend(CodeVerifier._comment_ranges(child))
+        return ranges
     
     @staticmethod
     def verify_code_unchanged(original: str, modified: str) -> tuple[bool, str]:

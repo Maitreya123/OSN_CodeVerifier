@@ -3,3 +3,5 @@ python-dotenv>=1.0.0
 groq>=0.4.0
 openai>=1.0.0
 streamlit>=1.28.0
+tree-sitter>=0.23,<0.25
+tree-sitter-cpp>=0.23,<0.24
