@@ -4,6 +4,7 @@ import unittest
 
 from cpp_header_parser import CppHeaderParser
 from code_verifier import CodeVerifier
+from doxygen_validator import DoxygenValidator
 
 
 class CppHeaderParserTests(unittest.TestCase):
@@ -89,6 +90,39 @@ static void LocalOnly();
 
         valid, message = CodeVerifier.verify_code_unchanged(original, documented)
 
+        self.assertTrue(valid, message)
+
+    def test_fixer_revalidates_locations_after_insertions(self) -> None:
+        source = """
+class Widget
+{
+public:
+  /// Returns the stored value.
+  int GetValue() const;
+  void SetValue(int value);
+
+private:
+  int value_;
+};
+"""
+        validator = object.__new__(DoxygenValidator)
+        validator.cpp_parser = CppHeaderParser()
+        validator.verify_code = True
+
+        def generate_documentation(entity, _content):
+            if entity["type"] == "class":
+                return "/// Widget value container."
+            if entity["type"] == "member_variable":
+                return "/// Stored value."
+            return "/// Get the stored value."
+
+        validator.fix_entity = generate_documentation
+        fixed = validator.fix_file(source)
+
+        self.assertIn("  /// Get the stored value.\n  int GetValue() const;", fixed)
+        self.assertIn("  /// Get the stored value.\n  void SetValue(int value);", fixed)
+        self.assertIn("  /// Stored value.\n  int value_;", fixed)
+        valid, message = CodeVerifier.verify_code_unchanged(source, fixed)
         self.assertTrue(valid, message)
 
 

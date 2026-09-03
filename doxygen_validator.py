@@ -855,40 +855,20 @@ CRITICAL RULES:
         
         lines = file_content.split('\n')
         
-        # Separate issues into different categories
+        style_issues = [
+            issue for issue in validation_result['issues']
+            if issue['issue_type'] in ['wrong_style', 'wrong_format']
+            and not (issue['entity']['type'] == 'class' and '@brief' in issue.get('message', ''))
+        ]
+
+        for issue in sorted(style_issues, key=lambda issue: issue['entity']['line'], reverse=True):
+            lines = self._fix_style_issue(lines, issue)
+
+        validation_result = self.validate_file('\n'.join(lines))
         missing_doc_issues = [
             issue for issue in validation_result['issues']
             if issue['issue_type'] == 'missing_documentation'
         ]
-        
-        # Issues that need documentation regeneration
-        # - wrong_brief_style: wrong verb forms
-        # - wrong_command: \brief or \details usage
-        # - wrong_style for classes with @brief (will become \brief after fix, still wrong)
-        regenerate_issues = [
-            issue for issue in validation_result['issues']
-            if issue['issue_type'] in ['wrong_brief_style', 'wrong_command'] or
-               (issue['issue_type'] == 'wrong_style' and issue['entity']['type'] == 'class' and '@brief' in issue.get('message', ''))
-        ]
-        
-        # Simple style fixes (can be done with find/replace)
-        style_issues = [
-            issue for issue in validation_result['issues']
-            if issue['issue_type'] in ['wrong_style', 'wrong_format'] and issue not in regenerate_issues
-        ]
-        
-        # Fix simple style issues first (don't change line count)
-        for issue in style_issues:
-            lines = self._fix_style_issue(lines, issue)
-        
-        # Regenerate documentation for issues that can't be fixed with find/replace
-        # Sort by line number in REVERSE order
-        regenerate_issues.sort(key=lambda x: x['entity']['line'], reverse=True)
-        for issue in regenerate_issues:
-            lines = self._regenerate_documentation(lines, issue)
-        
-        # For missing documentation, we need to be careful about line numbers
-        # Sort by line number in REVERSE order so insertions don't affect later line numbers
         missing_doc_issues.sort(key=lambda x: x['entity']['line'], reverse=True)
         
         for issue in missing_doc_issues:
@@ -899,15 +879,22 @@ CRITICAL RULES:
             if line_idx < 0 or line_idx >= len(lines):
                 continue
             
-            # CRITICAL: Check if documentation already exists above this line
             has_existing_doc = False
-            for i in range(max(0, line_idx - 10), line_idx):
+            for i in range(line_idx - 1, max(0, line_idx - 15), -1):
                 line_stripped = lines[i].strip()
-                if line_stripped.startswith('///') or line_stripped.startswith('/**') or line_stripped.startswith('*'):
+                if line_stripped.startswith('///') or line_stripped.startswith('/**') or (
+                    line_stripped.startswith('*') and not line_stripped.startswith('*/')
+                ):
                     has_existing_doc = True
+                elif line_stripped.startswith('*/'):
+                    has_existing_doc = True
+                elif not line_stripped:
+                    if has_existing_doc:
+                        break
+                    continue
+                else:
                     break
-            
-            # Skip if documentation already exists
+
             if has_existing_doc:
                 continue
             
@@ -956,7 +943,17 @@ CRITICAL RULES:
             # Insert documentation lines BEFORE the entity (in reverse to maintain order)
             for doc_line in reversed(doc_lines):
                 lines.insert(line_idx, indent_str + doc_line)
-        
+
+        validation_result = self.validate_file('\n'.join(lines))
+        regenerate_issues = [
+            issue for issue in validation_result['issues']
+            if issue['issue_type'] in ['wrong_brief_style', 'wrong_command'] or
+            (issue['issue_type'] == 'wrong_style' and issue['entity']['type'] == 'class' and '@brief' in issue.get('message', ''))
+        ]
+        regenerate_issues.sort(key=lambda x: x['entity']['line'], reverse=True)
+        for issue in regenerate_issues:
+            lines = self._regenerate_documentation(lines, issue)
+
         fixed_content = '\n'.join(lines)
         
         # Verify that only comments were changed (if verification enabled)
