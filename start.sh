@@ -23,9 +23,10 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-if grep -q "TAMU_API_KEY=your-api-key-here" .env || grep -q "TAMU_API_KEY=$" .env; then
+if ! grep -Eq '^TAMU_CHAT_API_KEY_DOXYGEN=.+|^TAMU_API_KEY=.+' .env || \
+   grep -Eq '^(TAMU_CHAT_API_KEY_DOXYGEN|TAMU_API_KEY)=(your(-actual)?-api-key-here)?$' .env; then
     echo "✗ Error: TAMU API key not configured"
-    echo "  Please edit .env and add your TAMU API key"
+    echo "  Please set TAMU_CHAT_API_KEY_DOXYGEN or TAMU_API_KEY in .env"
     exit 1
 fi
 

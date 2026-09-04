@@ -12,9 +12,12 @@ Your API key is incorrect or malformed.
 2. Generate a new API key
 3. Update your `.env` file:
    ```
-   TAMU_API_KEY=your-new-api-key-here
+   TAMU_CHAT_API_KEY_DOXYGEN=your-new-api-key-here
    ```
-4. Run the test again: `python3 nuclear_doxygen/test_api.py`
+4. Verify the configuration again:
+   ```bash
+   ./venv/bin/python -c "from llm_client import LLMClient; print(LLMClient().provider)"
+   ```
 
 ### Cause 2: Expired API Key
 Your API key has expired.
@@ -35,25 +38,23 @@ The TAMU API service might be temporarily down.
 
 ## Testing Your Setup
 
-Run the diagnostic test:
+Verify the API-client configuration:
 ```bash
-python3 nuclear_doxygen/test_api.py
+./venv/bin/python -c "from llm_client import LLMClient; print(LLMClient().provider)"
 ```
 
 This will:
 - Check if your API key is present
-- Test the connection
-- Provide specific error diagnostics
-- Suggest solutions
+- Report the selected provider
 
 ## Common Error Messages
 
-### "TAMU_API_KEY not found in .env file"
+### "TAMU API key not found in .env file"
 **Problem:** No API key configured
 
 **Solution:**
 1. Create or edit `.env` file in the project root
-2. Add: `TAMU_API_KEY=your-api-key-here`
+2. Add: `TAMU_CHAT_API_KEY_DOXYGEN=your-api-key-here`
 
 ### "401 Unauthorized"
 **Problem:** Invalid API key
@@ -88,14 +89,14 @@ OPENAI_API_KEY=your-openai-key
 
 If you're still having issues:
 
-1. Run the diagnostic test and save the output:
+1. Run the configuration check and save the output:
    ```bash
-   python3 nuclear_doxygen/test_api.py > test_output.txt
+   ./venv/bin/python -c "from llm_client import LLMClient; print(LLMClient().provider)" > test_output.txt
    ```
 
 2. Check that your `.env` file has the correct format:
    ```
-   TAMU_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TAMU_CHAT_API_KEY_DOXYGEN=your-api-key-here
    ```
 
 3. Verify your API key at https://chat-api.tamu.ai
@@ -105,9 +106,9 @@ If you're still having issues:
 ## Quick Fix Checklist
 
 - [ ] API key is in `.env` file
-- [ ] API key starts with `sk-`
+- [ ] API key has no placeholder value
 - [ ] No extra spaces or quotes around the key
 - [ ] `.env` file is in the project root directory
-- [ ] Ran `python3 nuclear_doxygen/test_api.py` to test
+- [ ] Ran the configuration check shown above
 - [ ] Internet connection is working
 - [ ] Tried generating a new API key

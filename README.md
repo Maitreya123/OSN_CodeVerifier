@@ -130,13 +130,13 @@ nuclear_doxygen/
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.9 or higher
 - TAMU AI Chat API key
 - Internet connection (for API calls)
 
 ## How It Works
 
-1. **Parser** - Identifies all classes, methods, and variables in the C++ file
+1. **Parser** - Uses Tree-sitter to identify C++ declarations without inspecting function bodies
 2. **Validator** - Checks each entity against OpenSn Doxygen guidelines
 3. **Generator** - Uses TAMU AI Chat to generate proper documentation
    - Understands OpenSn codebase context from GitHub
@@ -174,7 +174,7 @@ Full guidelines: https://open-sn.github.io/opensn/devguide/doxygen.html
 chmod +x setup.sh start.sh
 
 # If Python 3 not found
-# Install Python 3.8+ from python.org
+# Install Python 3.9+ from python.org
 ```
 
 ### API Issues
@@ -193,6 +193,26 @@ chmod +x setup.sh start.sh
 ./setup.sh
 ```
 
+### Segmentation Fault During Validation
+
+The C++ parser uses native Tree-sitter packages. Always run the CLI through the
+project virtual environment, not system `python3`:
+
+```bash
+./venv/bin/python doxygen_cli.py myfile.h
+```
+
+If a segmentation fault occurs after updating the project, reinstall the pinned
+parser dependencies in the virtual environment:
+
+```bash
+./venv/bin/pip install --force-reinstall -r requirements.txt
+./venv/bin/python -m pip show tree-sitter tree-sitter-cpp
+```
+
+Include the output of the second command and `./venv/bin/python --version` when
+reporting the issue.
+
 ## Advanced Usage
 
 ### Terminal API (Batch Processing)
@@ -201,25 +221,25 @@ Process multiple files or entire directories:
 
 ```bash
 # Validate a single file
-python3 doxygen_cli.py myfile.h
+./venv/bin/python doxygen_cli.py myfile.h
 
 # Fix a file and save to new file
-python3 doxygen_cli.py myfile.h --fix
+./venv/bin/python doxygen_cli.py myfile.h --fix
 
 # Fix in-place with backup
-python3 doxygen_cli.py myfile.h --fix --in-place --backup
+./venv/bin/python doxygen_cli.py myfile.h --fix --in-place --backup
 
 # Process all .h files in a directory
-python3 doxygen_cli.py src/ --fix --in-place
+./venv/bin/python doxygen_cli.py src/ --fix --in-place
 
 # Process recursively
-python3 doxygen_cli.py src/ --fix --in-place --recursive
+./venv/bin/python doxygen_cli.py src/ --fix --in-place --recursive
 
 # Verbose output
-python3 doxygen_cli.py myfile.h --fix --verbose
+./venv/bin/python doxygen_cli.py myfile.h --fix --verbose
 
 # Disable code verification (not recommended)
-python3 doxygen_cli.py myfile.h --fix --no-verify
+./venv/bin/python doxygen_cli.py myfile.h --fix --no-verify
 ```
 
 ### Code Verification
@@ -241,7 +261,7 @@ To disable verification (not recommended):
 Test the validator without the UI:
 
 ```bash
-python3 -c "
+./venv/bin/python -c "
 from doxygen_validator import DoxygenValidator
 validator = DoxygenValidator()
 with open('demo_file.h') as f:
@@ -260,7 +280,7 @@ validator = DoxygenValidator(reference_file_path="your_file.h")
 
 Or with CLI:
 ```bash
-python3 doxygen_cli.py myfile.h --reference your_reference.h
+./venv/bin/python doxygen_cli.py myfile.h --reference your_reference.h
 ```
 
 ## API Information
